@@ -105,6 +105,73 @@ type Cursor struct {
 	x int
 }
 
+func MoveCursorBeginningOfPrev() {
+	fmt.Printf("\033[F")
+}
+
+func DeleteCurrentLine() {
+	fmt.Printf("\033[2K")
+}
+
+func RestoreCursorPos() {
+	fmt.Printf("\033[u")
+}
+func SaveCursorPos() {
+	fmt.Printf("\033[s")
+}
+
+func PreRender() {
+	SaveCursorPos()
+	DeleteCurrentLine()
+	MoveCursorBeginningOfPrev()
+	fmt.Printf("\033[1B")
+	fmt.Print("Enter text: ")
+}
+
+func PostRender() {
+	RestoreCursorPos()
+}
+
+func CursorRight() {
+	fmt.Printf("\033[1C")
+
+}
+
+func CursorLeft() {
+	fmt.Printf("\033[1D")
+
+}
+
+func Render(line_buffer []byte) {
+	PreRender()
+
+	fmt.Printf("%s", line_buffer)
+
+	PostRender()
+}
+
+func DeleteRender(line_buffer *[]byte, cursor *Cursor, read_data []byte) {
+	PreRender()
+
+	*line_buffer = append((*line_buffer)[:cursor.x-1], (*line_buffer)[cursor.x:]...)
+	fmt.Printf("%s", *line_buffer)
+	cursor.x = cursor.x - 1
+
+	PostRender()
+	CursorLeft()
+}
+
+func InsertRender(line_buffer *[]byte, cursor *Cursor, read_data []byte) {
+	PreRender()
+
+	(*line_buffer) = append((*line_buffer)[:cursor.x], append(read_data, (*line_buffer)[cursor.x:]...)...)
+	fmt.Printf("%s", *line_buffer)
+	cursor.x = cursor.x + 1
+
+	PostRender()
+	CursorRight()
+}
+
 func main() {
 
 	cursor := Cursor{x: 0}
@@ -125,35 +192,43 @@ func main() {
 			switch arrow {
 			case UP:
 				{
-					//fmt.Printf("\033[1A")
-					line_buffer = line_buffer_history[history_index]
-					history_index++
+					if len(line_buffer_history) > 0 {
+						//fmt.Printf("\033[1A")
+						line_buffer = line_buffer_history[history_index]
+						if history_index < len(line_buffer_history)-1 {
+							history_index++
+						}
+						Render(line_buffer)
+					}
 				}
 			case DOWN:
 				{
-					//fmt.Printf("\033[1B")
-					line_buffer = line_buffer_history[history_index]
-					history_index++
-
+					if len(line_buffer_history) > 0 {
+						line_buffer = line_buffer_history[history_index]
+						if history_index > 0 {
+							history_index--
+						}
+						Render(line_buffer)
+					}
 				}
 			case RIGHT:
 				{
 					if cursor.x < len(line_buffer) {
-						fmt.Printf("\033[1C")
+						CursorRight()
 						cursor.x = cursor.x + 1
 					}
 				}
 			case LEFT:
 				{
 					if cursor.x > 0 {
-						fmt.Printf("\033[1D")
+						CursorLeft()
 						cursor.x = cursor.x - 1
 					}
 				}
 
 			}
 		} else if is_enter(read_data) {
-			line_buffer_history = append(line_buffer_history, line_buffer)
+			line_buffer_history = append([][]byte{line_buffer}, line_buffer_history...)
 			line_buffer = []byte{}
 			fmt.Print("\n")
 			fmt.Print("Enter text: ")
@@ -161,51 +236,11 @@ func main() {
 
 		} else if is_delete(read_data) {
 			if len(line_buffer) > 0 && cursor.x > 0 {
-				fmt.Printf("\033[s")
-				fmt.Printf("\033[2K")
-				fmt.Printf("\033[F")
-				fmt.Printf("\033[1B")
-				fmt.Print("Enter text: ")
-
-				//for i := 0; i < len(line_buffer)-cursor.x; i++ {
-				//fmt.Printf("\033[1C")
-				//}
-
-				//for _, _ = range line_buffer {
-				//fmt.Printf("\b")
-				/*}*/
-				line_buffer = append(line_buffer[:cursor.x-1], line_buffer[cursor.x:]...)
-				//line_buffer = append(line_buffer[:cursor.x], append(read_data, line_buffer[cursor.x:]...)...)
-				//line_buffer = append(line_buffer, read_data...)
-				fmt.Printf("%s", line_buffer)
-				cursor.x = cursor.x - 1
-
-				fmt.Printf("\033[u")
-				fmt.Printf("\033[1D")
+				DeleteRender(&line_buffer, &cursor, read_data)
 			}
 
 		} else {
-			fmt.Printf("\033[s")
-			fmt.Printf("\033[2K")
-			fmt.Printf("\033[F")
-			fmt.Printf("\033[1B")
-			fmt.Print("Enter text: ")
-
-			//for i := 0; i < len(line_buffer)-cursor.x; i++ {
-			//fmt.Printf("\033[1C")
-			//}
-
-			//for _, _ = range line_buffer {
-			//fmt.Printf("\b")
-			/*}*/
-
-			line_buffer = append(line_buffer[:cursor.x], append(read_data, line_buffer[cursor.x:]...)...)
-			//line_buffer = append(line_buffer, read_data...)
-			fmt.Printf("%s", line_buffer)
-			cursor.x = cursor.x + 1
-
-			fmt.Printf("\033[u")
-			fmt.Printf("\033[1C")
+			InsertRender(&line_buffer, &cursor, read_data)
 		}
 	}
 }
