@@ -80,6 +80,19 @@ func is_delete(input []byte) bool {
 
 }
 
+func is_tab(input []byte) bool {
+	if len(input) != 1 {
+		return false
+	}
+
+	if input[0] == 9 {
+		return true
+	}
+
+	return false
+
+}
+
 func is_enter(input []byte) bool {
 	if len(input) != 1 {
 		return false
@@ -171,10 +184,10 @@ func InsertRender(line_buffer *[]byte, cursor *Cursor, read_data []byte) {
 	PostRender()
 	CursorRight()
 }
-
 func main() {
 
 	cursor := Cursor{x: 0}
+	tree := prefix_tree{root: &prefix_node{children: map[byte]*prefix_node{}}}
 
 	enableRaw()
 	var b []byte = make([]byte, 100)
@@ -227,13 +240,24 @@ func main() {
 				}
 
 			}
+		} else if is_tab(read_data) {
+			search_root := find_search_root(tree.root, line_buffer)
+			prefixs := search_prefix_tree(search_root)
+			fmt.Printf("\n")
+			for _, prefix := range prefixs {
+				fmt.Printf("%s", string(line_buffer[:len(line_buffer)-1])+string(prefix))
+			}
+			fmt.Printf("\n")
+
 		} else if is_enter(read_data) {
-			line_buffer_history = append([][]byte{line_buffer}, line_buffer_history...)
+			if len(line_buffer) > 0 {
+				line_buffer_history = append([][]byte{line_buffer}, line_buffer_history...)
+			}
+			add_word_to_prefix_tree(tree.root, append(line_buffer, byte(10)))
 			line_buffer = []byte{}
 			fmt.Print("\n")
 			fmt.Print("Enter text: ")
 			cursor.x = 0
-
 		} else if is_delete(read_data) {
 			if len(line_buffer) > 0 && cursor.x > 0 {
 				DeleteRender(&line_buffer, &cursor, read_data)
