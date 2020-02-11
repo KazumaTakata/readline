@@ -1,4 +1,4 @@
-package main
+package readline
 
 type prefix_node struct {
 	children map[byte]*prefix_node

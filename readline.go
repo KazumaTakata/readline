@@ -1,4 +1,4 @@
-package main
+package readline
 
 import (
 	"fmt"
@@ -31,6 +31,8 @@ const (
 	LEFT  Arrow = 3
 	NONE  Arrow = 4
 )
+
+var prompt string
 
 func is_arrow(input []byte) (bool, Arrow) {
 
@@ -128,6 +130,7 @@ func DeleteCurrentLine() {
 
 func RestoreCursorPos() {
 	fmt.Printf("\033[u")
+
 }
 func SaveCursorPos() {
 	fmt.Printf("\033[s")
@@ -138,7 +141,7 @@ func PreRender() {
 	DeleteCurrentLine()
 	MoveCursorBeginningOfPrev()
 	fmt.Printf("\033[1B")
-	fmt.Print("Enter text: ")
+	fmt.Print(prompt)
 }
 
 func PostRender() {
@@ -147,7 +150,6 @@ func PostRender() {
 
 func CursorRight() {
 	fmt.Printf("\033[1C")
-
 }
 
 func CursorLeft() {
@@ -155,6 +157,10 @@ func CursorLeft() {
 
 }
 
+func MoveCursorEndOfLine(length int) {
+	fmt.Printf("\033[%dG", length)
+
+}
 func Render(line_buffer []byte) {
 	PreRender()
 
@@ -184,7 +190,9 @@ func InsertRender(line_buffer *[]byte, cursor *Cursor, read_data []byte) {
 	PostRender()
 	CursorRight()
 }
-func main() {
+func Readline(_prompt string, callback func(input []byte)) {
+
+	prompt = _prompt
 
 	cursor := Cursor{x: 0}
 	tree := prefix_tree{root: &prefix_node{children: map[byte]*prefix_node{}}}
@@ -193,10 +201,13 @@ func main() {
 	var b []byte = make([]byte, 100)
 	line_buffer := []byte{}
 	line_buffer_history := [][]byte{}
-	history_index := 0
+	history_index := -1
 	//SetForgroundColorWithRBG(1, 240, 22)
 	//SetBackgroundColorWithRBG(233, 1, 1)
-	fmt.Print("Enter text: ")
+	fmt.Print(prompt)
+
+	cur_line_buffer := []byte{}
+
 	for {
 
 		byte_count, _ := os.Stdin.Read(b)
@@ -207,21 +218,39 @@ func main() {
 				{
 					if len(line_buffer_history) > 0 {
 						//fmt.Printf("\033[1A")
-						line_buffer = line_buffer_history[history_index]
+						if history_index == -1 {
+							cur_line_buffer = line_buffer
+						}
 						if history_index < len(line_buffer_history)-1 {
 							history_index++
+							line_buffer = line_buffer_history[history_index]
+							Render(line_buffer)
+							length := len(line_buffer) + len(prompt) + 1
+							MoveCursorEndOfLine(length)
+							cursor.x = len(line_buffer)
 						}
-						Render(line_buffer)
+
 					}
 				}
 			case DOWN:
 				{
 					if len(line_buffer_history) > 0 {
-						line_buffer = line_buffer_history[history_index]
 						if history_index > 0 {
 							history_index--
+							line_buffer = line_buffer_history[history_index]
+							Render(line_buffer)
+							length := len(line_buffer) + len(prompt) + 1
+							MoveCursorEndOfLine(length)
+							cursor.x = len(line_buffer)
+						} else if history_index == 0 {
+							history_index--
+							line_buffer = cur_line_buffer
+							Render(line_buffer)
+							length := len(line_buffer) + len(prompt) + 1
+							MoveCursorEndOfLine(length)
+							cursor.x = len(line_buffer)
 						}
-						Render(line_buffer)
+
 					}
 				}
 			case RIGHT:
@@ -250,13 +279,19 @@ func main() {
 			fmt.Printf("\n")
 
 		} else if is_enter(read_data) {
+			history_index = -1
+
 			if len(line_buffer) > 0 {
 				line_buffer_history = append([][]byte{line_buffer}, line_buffer_history...)
 			}
 			add_word_to_prefix_tree(tree.root, append(line_buffer, byte(10)))
+
+			fmt.Print("\n")
+			callback(line_buffer)
+
 			line_buffer = []byte{}
 			fmt.Print("\n")
-			fmt.Print("Enter text: ")
+			fmt.Print(prompt)
 			cursor.x = 0
 		} else if is_delete(read_data) {
 			if len(line_buffer) > 0 && cursor.x > 0 {
